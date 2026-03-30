@@ -126,12 +126,22 @@ const calculateNutrientsAndYield = async (crop, soilData, sizeAcres) => {
     const prompt = `Given an agricultural field of ${sizeAcres} acres planting ${crop}, 
     and existing soil conditions of pH ${soilData?.pH || 'Unknown'}, Nitrogen: ${soilData?.NPK?.N || 'Unknown'}, Phosphorus: ${soilData?.NPK?.P || 'Unknown'}, Potassium: ${soilData?.NPK?.K || 'Unknown'}.
     
-    Calculate the exact required fertilizer/nutrient regimens to optimize growth.
-    Also, calculate the standard Estimated Harvest Time (in days) from planting, and the Estimated Average Yield for exactly ${sizeAcres} acres.
+    Calculate the exact required fertilization schedule. Break this down into multiple timeline stages.
+    For EACH stage, provide exactly what day it should occur relative to planting (dayOffset), a descriptive stageName, AND outline BOTH organic and chemical alternatives.
+    Also, calculate the Predicted Harvest Time (daysToHarvest) and Estimated Yield Raw.
     You MUST output ONLY valid JSON.
     Schema:
     {
-      "requiredNutrients": ["Apply X lbs of Nitrogen per acre...", "Add Lime to adjust pH..."],
+      "fertilizationSchedule": [
+        {
+          "dayOffset": 15,
+          "stageName": "Early Vegetative Growth",
+          "options": {
+            "chemical": ["Apply X lbs of Urea", "Apply Y lbs of DAP"],
+            "organic": ["Apply Neem Cake", "Apply Cow Dung Manure"]
+          }
+        }
+      ],
       "daysToHarvest": 90,
       "estimatedYieldRaw": 15.5,
       "yieldUnit": "Tons or kg"

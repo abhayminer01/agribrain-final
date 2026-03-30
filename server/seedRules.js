@@ -2,17 +2,19 @@ const mongoose = require('mongoose');
 const Rule = require('./src/modules/ruleEngine/rule.model');
 require('dotenv').config();
 
+const bannedInIndia = ['Phorate', 'Monocrotophos', 'Phosphamidon', 'Endosulfan', 'Diazinon', 'Aldrin', 'DDT'];
 mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log("Connected to DB");
     await Rule.deleteMany({});
-    await Rule.create({
-        ruleName: "Ban Endosulfan",
+    const rules = bannedInIndia.map(chem => ({
+        ruleName: `Ban ${chem} in India`,
         conditionType: "BANNED_CHEMICAL",
-        targetValue: "Endosulfan",
+        targetValue: chem,
         overrideAction: "Remove from suggestions"
-    });
-    console.log("Seeded Rule Engine!");
+    }));
+    await Rule.insertMany(rules);
+    console.log("Seeded Indian Banned Fertilizers Array!");
     process.exit(0);
   }).catch(err => {
       console.log(err);

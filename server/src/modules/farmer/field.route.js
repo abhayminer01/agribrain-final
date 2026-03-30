@@ -20,5 +20,7 @@ router.post('/analyze-soil', upload.single('soilReport'), fieldController.analyz
 router.post('/', upload.single('image'), fieldController.createField);
 router.get('/', fieldController.getFields);
 router.put('/:id/plant', fieldController.markPlanted);
+router.put('/:id/schedule/:stageIndex/select', fieldController.updateSchedulePreference);
+router.put('/:id/schedule/:stageIndex/apply', fieldController.applySchedulePhase);
 
 module.exports = router;

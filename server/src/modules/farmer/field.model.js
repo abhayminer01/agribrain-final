@@ -22,8 +22,17 @@ const fieldSchema = new mongoose.Schema({
     estimatedYieldRaw: { type: Number },
     yieldUnit: { type: String },
     
-    // Nutrient Action Plan from AI
-    requiredNutrients: [String]
+    // NEW: Timed Schedule mapped organically and chemically
+    fertilizationSchedule: [{
+        dayOffset: { type: Number, required: true },
+        stageName: { type: String, required: true },
+        options: {
+            chemical: [String],
+            organic: [String]
+        },
+        selectedType: { type: String, enum: ['chemical', 'organic', null], default: null },
+        status: { type: String, enum: ['pending', 'notified', 'applied'], default: 'pending' }
+    }]
     
 }, { timestamps: true });
 

@@ -11,6 +11,10 @@ const diseaseRoutes = require('./src/modules/disease/disease.route');
 const soilRoutes = require('./src/modules/soil/soil.route');
 const expertRoutes = require('./src/modules/expert/expert.route');
 const adminRoutes = require('./src/modules/admin/admin.route');
+const notificationRoutes = require('./src/modules/farmer/notification.route');
+
+// Init Background Cron Workers
+require('./src/utils/cron');
 
 const app = express();
 
@@ -43,6 +47,7 @@ app.use('/api/disease', diseaseRoutes);
 app.use('/api/soil', soilRoutes);
 app.use('/api/expert', expertRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
