@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { FileText, Pickaxe, ShieldAlert } from 'lucide-react';
 import { generateFieldAuditPDF } from '../utils/pdfGenerator';
 
 const API = 'http://localhost:5000';
@@ -26,6 +27,9 @@ export default function FieldDetailPage() {
     const [scanImage, setScanImage] = useState(null);
     const [scanning, setScanning] = useState(false);
     const [scanError, setScanError] = useState('');
+
+    // Action Modal State
+    const [actionModal, setActionModal] = useState({ type: null, field: null, input: '' });
 
     const fetchField = useCallback(async () => {
         try {
@@ -110,6 +114,30 @@ export default function FieldDetailPage() {
         generateFieldAuditPDF(field);
     };
 
+    const handleFieldAction = async (e) => {
+        e.preventDefault();
+        const { type, field: modalData, input } = actionModal;
+        let url = '';
+        let opt = { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+
+        if (type === 'harvest') {
+            url = `${API}/api/fields/${id}/harvest`;
+            opt.body = JSON.stringify({ actualYield: input });
+        } else if (type === 'failure') {
+            url = `${API}/api/fields/${id}/failure`;
+            opt.body = JSON.stringify({ failureReason: input });
+        }
+
+        try {
+            const res = await fetch(url, opt);
+            if (res.ok) {
+                const data = await res.json();
+                setField(data.field);
+                setActionModal({ type: null, field: null, input: '' });
+            }
+        } catch(err) {}
+    }
+
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="animate-spin h-10 w-10 rounded-full border-4 border-green-700 border-b-transparent"></div>
@@ -157,13 +185,25 @@ export default function FieldDetailPage() {
                         >
                             ← Dashboard
                         </button>
-                        <button
-                            onClick={handleGeneratePDF}
-                            className="bg-emerald-600 hover:bg-emerald-700 backdrop-blur-md text-white font-bold px-5 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition-all"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                            Get Complete Audit
-                        </button>
+                        <div className="flex gap-2">
+                            {field.status === 'active' && field.plantingDate && (
+                                <>
+                                    <button onClick={() => setActionModal({type: 'harvest', field, input: ''})} className="bg-indigo-600 hover:bg-indigo-700 backdrop-blur-md text-white font-bold px-4 py-2 rounded-lg transition-all shadow-lg text-sm flex items-center gap-1.5">
+                                        <Pickaxe size={16}/> Harvest
+                                    </button>
+                                    <button onClick={() => setActionModal({type: 'failure', field, input: ''})} className="bg-rose-600 hover:bg-rose-700 backdrop-blur-md text-white font-bold px-4 py-2 rounded-lg transition-all shadow-lg text-sm flex items-center gap-1.5">
+                                        <ShieldAlert size={16}/> Failure
+                                    </button>
+                                </>
+                            )}
+                            <button
+                                onClick={handleGeneratePDF}
+                                className="bg-emerald-600 hover:bg-emerald-700 backdrop-blur-md text-white font-bold px-5 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition-all text-sm"
+                            >
+                                <FileText size={18}/>
+                                Audit PDF
+                            </button>
+                        </div>
                     </div>
                     <span className="text-white/70 text-sm font-bold uppercase tracking-widest mb-2">Field Overview</span>
                     <h1 className="text-4xl md:text-5xl font-black text-white">{field.name}</h1>
@@ -707,6 +747,43 @@ export default function FieldDetailPage() {
                 )}
 
             </div>
+
+            {/* Action Modals */}
+            {actionModal.type && (
+                <div className='fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex justify-center items-center z-50 p-4' onClick={() => setActionModal({type: null, field: null, input: ''})}>
+                    <div className='bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl' onClick={e => e.stopPropagation()}>
+                        <h2 className='text-2xl font-black text-gray-800 mb-6'>
+                            {actionModal.type === 'harvest' && 'Mark Harvested'}
+                            {actionModal.type === 'failure' && 'Mark Crop Failure'}
+                        </h2>
+                        
+                        <form onSubmit={handleFieldAction} className="flex flex-col gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    {actionModal.type === 'harvest' && `Actual Yield (${field.yieldUnit || 'units'})`}
+                                    {actionModal.type === 'failure' && 'Reason for Failure'}
+                                </label>
+                                <input 
+                                    autoFocus
+                                    type={actionModal.type === 'harvest' ? 'number' : 'text'}
+                                    required
+                                    value={actionModal.input}
+                                    onChange={e => setActionModal({...actionModal, input: e.target.value})}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-green-400"
+                                    placeholder={actionModal.type === 'failure' ? 'e.g., Heavy rainfall, Pest attack' : ''}
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-4">
+                                <button type="button" onClick={() => setActionModal({type: null, field: null, input: ''})} className="px-5 py-2 text-gray-500 font-bold hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+                                <button type="submit" className={`px-5 py-2 font-bold text-white rounded-lg shadow-sm transition-colors ${actionModal.type === 'failure' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-700 hover:bg-green-800'}`}>
+                                    Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
