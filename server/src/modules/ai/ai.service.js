@@ -22,16 +22,32 @@ const getFilePart = (filePath) => {
 };
 
 const detectDisease = async (filePath) => {
-    const prompt = `Analyze this crop image to detect diseases. You MUST output ONLY valid JSON.
+    const prompt = `Analyze this crop image to detect diseases. Identify the disease and its severity.
+    Then create a multi-step TREATMENT COURSE with timeline. Each step should have a dayOffset (days from diagnosis), a stageName, and BOTH organic and chemical treatment options.
+    You MUST output ONLY valid JSON.
     Schema:
     {
       "type": "disease",
       "name": "Name of the disease",
       "severity": "Low | Medium | High",
-      "suggestions": {
-        "chemical": ["suggested chemicals"],
-        "organic": ["suggested organic treatments"]
-      }
+      "treatmentCourse": [
+        {
+          "dayOffset": 0,
+          "stageName": "Immediate Action",
+          "options": {
+            "chemical": ["Apply fungicide X"],
+            "organic": ["Apply neem oil spray"]
+          }
+        },
+        {
+          "dayOffset": 7,
+          "stageName": "Follow-up Treatment",
+          "options": {
+            "chemical": ["Re-apply fungicide X at half dose"],
+            "organic": ["Apply Trichoderma bio-agent"]
+          }
+        }
+      ]
     }`;
     
     try {
@@ -49,16 +65,32 @@ const detectDisease = async (filePath) => {
 };
 
 const detectPest = async (filePath) => {
-    const prompt = `Analyze this crop image to detect pests. You MUST output ONLY valid JSON.
+    const prompt = `Analyze this crop image to detect pests. Identify the pest and its severity.
+    Then create a multi-step TREATMENT COURSE with timeline. Each step should have a dayOffset (days from diagnosis), a stageName, and BOTH organic and chemical treatment options.
+    You MUST output ONLY valid JSON.
     Schema:
     {
       "type": "pest",
       "name": "Name of the pest",
       "severity": "Low | Medium | High",
-      "suggestions": {
-        "chemical": ["suggested chemicals"],
-        "organic": ["suggested organic treatments"]
-      }
+      "treatmentCourse": [
+        {
+          "dayOffset": 0,
+          "stageName": "Immediate Action",
+          "options": {
+            "chemical": ["Apply pesticide X"],
+            "organic": ["Release predatory insects"]
+          }
+        },
+        {
+          "dayOffset": 5,
+          "stageName": "Monitoring & Re-application",
+          "options": {
+            "chemical": ["Spot-spray affected areas"],
+            "organic": ["Apply neem oil at dawn"]
+          }
+        }
+      ]
     }`;
     
     try {

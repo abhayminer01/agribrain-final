@@ -19,7 +19,13 @@ router.use(requireAuth);
 router.post('/analyze-soil', upload.single('soilReport'), fieldController.analyzeSoilBeforeCreate);
 router.post('/', upload.single('image'), fieldController.createField);
 router.get('/', fieldController.getFields);
+router.get('/:id', fieldController.getFieldById);
+router.patch('/:id', fieldController.updateField);
+router.delete('/:id', fieldController.deleteField);
 router.put('/:id/plant', fieldController.markPlanted);
+router.post('/:id/diagnose', upload.single('image'), fieldController.diagnoseField);
+router.put('/:id/diagnose/:diagIndex/step/:stepIndex/select', fieldController.updateTreatmentStepPreference);
+router.put('/:id/diagnose/:diagIndex/step/:stepIndex/apply', fieldController.applyTreatmentStep);
 router.put('/:id/schedule/:stageIndex/select', fieldController.updateSchedulePreference);
 router.put('/:id/schedule/:stageIndex/apply', fieldController.applySchedulePhase);
 

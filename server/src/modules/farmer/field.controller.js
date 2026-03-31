@@ -69,6 +69,53 @@ const getFields = async (req, res) => {
     }
 };
 
+const getFieldById = async (req, res) => {
+    try {
+        const field = await Field.findById(req.params.id);
+        if (!field) return res.status(404).json({ success: false, message: 'Field not found' });
+        if (field.userId.toString() !== req.session.userId) return res.status(403).json({ success: false, message: 'Forbidden' });
+        res.status(200).json({ success: true, field });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+const updateField = async (req, res) => {
+    try {
+        const field = await Field.findById(req.params.id);
+        if (!field) return res.status(404).json({ success: false, message: 'Field not found' });
+        if (field.userId.toString() !== req.session.userId) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+        const { name, plantingDate } = req.body;
+        if (name) field.name = name.trim();
+        if (plantingDate) {
+            field.plantingDate = new Date(plantingDate);
+            // Recalculate harvest date if daysToHarvest exists
+            if (field.daysToHarvest) {
+                const harvestDate = new Date(plantingDate);
+                harvestDate.setDate(harvestDate.getDate() + field.daysToHarvest);
+                field.estimatedHarvestDate = harvestDate;
+            }
+        }
+        await field.save();
+        res.status(200).json({ success: true, field });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+const deleteField = async (req, res) => {
+    try {
+        const field = await Field.findById(req.params.id);
+        if (!field) return res.status(404).json({ success: false, message: 'Field not found' });
+        if (field.userId.toString() !== req.session.userId) return res.status(403).json({ success: false, message: 'Forbidden' });
+        await Field.findByIdAndDelete(req.params.id);
+        res.status(200).json({ success: true, message: 'Field deleted.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 const markPlanted = async (req, res) => {
     try {
         const field = await Field.findById(req.params.id);
@@ -131,11 +178,92 @@ const applySchedulePhase = async (req, res) => {
     }
 }
 
+// POST /api/fields/:id/diagnose — image upload -> AI -> rule engine -> saved to field
+const diagnoseField = async (req, res) => {
+    try {
+        const field = await Field.findById(req.params.id);
+        if (!field) return res.status(404).json({ success: false, message: 'Field not found' });
+        if (field.userId.toString() !== req.session.userId) return res.status(403).json({ success: false, message: 'Forbidden' });
+        if (!req.file) return res.status(400).json({ success: false, message: 'Image required.' });
+
+        const { scanType } = req.body; // 'disease' | 'pest'
+        const imageUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+
+        let rawResult;
+        if (scanType === 'pest') {
+            rawResult = await aiService.detectPest(req.file.path);
+        } else {
+            rawResult = await aiService.detectDisease(req.file.path);
+        }
+
+        // Pass through rule engine to strip banned chemicals
+        const { finalRecommendation } = await ruleEngine.validateAIResponse(rawResult);
+
+        const diagEntry = {
+            type:            finalRecommendation.type || scanType,
+            name:            finalRecommendation.name,
+            severity:        finalRecommendation.severity,
+            imageUrl,
+            treatmentCourse: finalRecommendation.treatmentCourse || []
+        };
+
+        field.diagnoses.push(diagEntry);
+        await field.save();
+
+        res.status(201).json({ success: true, field });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// PUT /api/fields/:id/diagnose/:diagIndex/step/:stepIndex/select
+const updateTreatmentStepPreference = async (req, res) => {
+    try {
+        const { id, diagIndex, stepIndex } = req.params;
+        const { selectedType } = req.body;
+
+        const field = await Field.findById(id);
+        if (!field) return res.status(404).json({ success: false, message: 'Field not found' });
+        if (field.userId.toString() !== req.session.userId) return res.status(403).json({ success: false, message: 'Forbidden' });
+        if (!field.diagnoses[diagIndex]?.treatmentCourse[stepIndex]) return res.status(400).json({ success: false, message: 'Invalid index' });
+
+        field.diagnoses[diagIndex].treatmentCourse[stepIndex].selectedType = selectedType;
+        await field.save();
+        res.status(200).json({ success: true, field });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// PUT /api/fields/:id/diagnose/:diagIndex/step/:stepIndex/apply
+const applyTreatmentStep = async (req, res) => {
+    try {
+        const { id, diagIndex, stepIndex } = req.params;
+
+        const field = await Field.findById(id);
+        if (!field) return res.status(404).json({ success: false, message: 'Field not found' });
+        if (field.userId.toString() !== req.session.userId) return res.status(403).json({ success: false, message: 'Forbidden' });
+        if (!field.diagnoses[diagIndex]?.treatmentCourse[stepIndex]) return res.status(400).json({ success: false, message: 'Invalid index' });
+
+        field.diagnoses[diagIndex].treatmentCourse[stepIndex].status = 'applied';
+        await field.save();
+        res.status(200).json({ success: true, field });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 module.exports = {
     analyzeSoilBeforeCreate,
     createField,
     getFields,
+    getFieldById,
+    updateField,
+    deleteField,
     markPlanted,
     updateSchedulePreference,
-    applySchedulePhase
+    applySchedulePhase,
+    diagnoseField,
+    updateTreatmentStepPreference,
+    applyTreatmentStep
 };

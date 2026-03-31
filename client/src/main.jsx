@@ -9,6 +9,8 @@ import DiseasePage from './pages/DiseasePage';
 import SoilPage from './pages/SoilPage';
 import ExpertPage from './pages/ExpertPage';
 import AdminPage from './pages/AdminPage';
+import FieldDetailPage from './pages/FieldDetailPage';
+import ManageFieldsPage from './pages/ManageFieldsPage';
 import NoPage from './pages/NoPage';
 
 createRoot(document.getElementById('root')).render(
@@ -22,6 +24,8 @@ createRoot(document.getElementById('root')).render(
         <Route path='/soil' element={<SoilPage />} />
         <Route path='/expert' element={<ExpertPage />} />
         <Route path='/admin' element={<AdminPage />} />
+        <Route path='/fields/:id' element={<FieldDetailPage />} />
+        <Route path='/manage-fields' element={<ManageFieldsPage />} />
         <Route path='*' element = { <NoPage /> } />
       </Routes>
     </Router>

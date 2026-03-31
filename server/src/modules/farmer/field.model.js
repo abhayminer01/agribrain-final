@@ -32,6 +32,26 @@ const fieldSchema = new mongoose.Schema({
         },
         selectedType: { type: String, enum: ['chemical', 'organic', null], default: null },
         status: { type: String, enum: ['pending', 'notified', 'applied'], default: 'pending' }
+    }],
+
+    // AI Pest & Disease Diagnoses History
+    diagnoses: [{
+        type:     { type: String, enum: ['disease', 'pest'] },
+        name:     { type: String },
+        severity: { type: String },
+        imageUrl: { type: String },
+        diagnosedAt: { type: Date, default: Date.now },
+        // Time-based treatment course (mirrors fertilizationSchedule)
+        treatmentCourse: [{
+            dayOffset:    { type: Number, required: true },
+            stageName:    { type: String, required: true },
+            options: {
+                chemical: [String],
+                organic:  [String]
+            },
+            selectedType: { type: String, enum: ['chemical', 'organic', null], default: null },
+            status:       { type: String, enum: ['pending', 'notified', 'applied'], default: 'pending' }
+        }]
     }]
     
 }, { timestamps: true });

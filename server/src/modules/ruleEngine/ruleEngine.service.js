@@ -41,6 +41,22 @@ const validateAIResponse = async (aiResult) => {
                         }
                     });
                 }
+
+                // 3. Filter nested treatment courses (disease/pest remedies)
+                if (finalRecommendation.treatmentCourse) {
+                    finalRecommendation.treatmentCourse.forEach(stage => {
+                        if (stage.options && stage.options.chemical) {
+                            const originalLength = stage.options.chemical.length;
+                            stage.options.chemical = stage.options.chemical.filter(
+                                chem => !chem.toLowerCase().includes(rule.targetValue.toLowerCase())
+                            );
+                            if (stage.options.chemical.length < originalLength) {
+                                warning = `Regulatory compliance applied: Removed ${rule.targetValue} from treatment course.`;
+                                source = "rule";
+                            }
+                        }
+                    });
+                }
             }
         });
 

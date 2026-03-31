@@ -10,6 +10,7 @@ export default function Dashboard() {
     // Notifications State
     const [notifications, setNotifications] = useState([]);
     const [showNotifs, setShowNotifs] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
 
     // Smart Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -222,10 +223,10 @@ export default function Dashboard() {
                     <h1 className='text-4xl font-black text-green-800'>Agri Brain Dashboard</h1>
                     <p className='text-gray-600 mt-2 font-medium'>Logged in as <span className="text-gray-900">{user?.email}</span></p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                     {/* Notification Bell */}
                     <div className="relative">
-                        <button onClick={() => setShowNotifs(!showNotifs)} className="bg-white border rounded-full p-3 shadow-sm hover:bg-gray-50 relative">
+                        <button onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false); }} className="bg-white border rounded-full p-3 shadow-sm hover:bg-gray-50 relative">
                             🔔
                             {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-black px-1.5 py-0.5 rounded-full">{unreadCount}</span>}
                         </button>
@@ -248,7 +249,42 @@ export default function Dashboard() {
                             </div>
                         )}
                     </div>
-                    <button onClick={handleLogout} className='bg-red-50 text-red-600 px-6 py-2 rounded-lg font-bold'>Logout</button>
+
+                    {/* Profile Avatar */}
+                    <div className="relative">
+                        <button
+                            onClick={() => { setShowProfile(!showProfile); setShowNotifs(false); }}
+                            className="w-10 h-10 rounded-full bg-gradient-to-br from-green-600 to-emerald-800 flex items-center justify-center text-white font-black text-lg shadow-sm hover:shadow-md transition-all border-2 border-white"
+                            title={user?.email}
+                        >
+                            {user?.email?.[0]?.toUpperCase() ?? 'U'}
+                        </button>
+                        {showProfile && (
+                            <div className="absolute right-0 top-12 w-52 bg-white border rounded-xl shadow-2xl z-50 overflow-hidden">
+                                <div className="px-4 py-3 bg-gray-50 border-b">
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Signed in as</p>
+                                    <p className="text-sm font-bold text-gray-800 truncate mt-0.5">{user?.email}</p>
+                                </div>
+                                <div className="p-1.5">
+                                    <button
+                                        onClick={() => { setShowProfile(false); navigate('/manage-fields'); }}
+                                        className="w-full text-left px-3 py-2.5 text-sm font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 rounded-lg transition-colors flex items-center gap-2"
+                                    >
+                                        🚜 Manage Fields
+                                    </button>
+                                    <div className="border-t my-1" />
+                                    <button
+                                        onClick={() => { setShowProfile(false); handleLogout(); }}
+                                        className="w-full text-left px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
+                                    >
+                                        ↩ Logout
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <button onClick={handleLogout} className='bg-red-50 text-red-600 px-5 py-2 rounded-lg font-bold text-sm'>Logout</button>
                 </div>
             </div>
 
@@ -266,7 +302,11 @@ export default function Dashboard() {
 
             <div className='flex flex-col gap-10'>
                 {fields.map(field => (
-                    <div key={field._id} className='bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 flex flex-col md:flex-row'>
+                    <div
+                        key={field._id}
+                        onClick={() => navigate(`/fields/${field._id}`)}
+                        className='bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 flex flex-col md:flex-row cursor-pointer hover:shadow-md hover:border-green-200 transition-all duration-200'
+                    >
                         {/* Field Image & Core Stats */}
                         <div className='w-full md:w-1/3 min-h-[300px] bg-gray-100 relative group shrink-0'>
                             <img src={field.imageUrl} alt={field.name} className='w-full h-full object-cover absolute inset-0' />
