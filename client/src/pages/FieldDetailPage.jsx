@@ -152,16 +152,73 @@ export default function FieldDetailPage() {
                     <span className="text-white/70 text-sm font-bold uppercase tracking-widest mb-2">Field Overview</span>
                     <h1 className="text-4xl md:text-5xl font-black text-white">{field.name}</h1>
                     <div className="flex flex-wrap gap-3 mt-3">
-                        <span className="bg-white/20 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-bold">📐 {field.size} Acres</span>
-                        <span className="bg-green-600/80 text-white px-3 py-1 rounded-full text-sm font-bold">🌿 {field.selectedCrop}</span>
+                        {field.status === 'harvested' && <span className="bg-indigo-600/90 text-white px-3 py-1 rounded-full text-sm font-bold shadow-sm">⛏️ Harvested</span>}
+                        {field.status === 'failure' && <span className="bg-rose-600/90 text-white px-3 py-1 rounded-full text-sm font-bold shadow-sm">⚠️ Failed</span>}
+                        <span className="bg-white/20 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-bold shadow-sm">📐 {field.size} Acres</span>
+                        <span className="bg-green-600/80 text-white px-3 py-1 rounded-full text-sm font-bold shadow-sm">🌿 {field.selectedCrop}</span>
                         {field.soilData?.pH && (
-                            <span className="bg-amber-600/80 text-white px-3 py-1 rounded-full text-sm font-bold">🧪 pH {field.soilData.pH}</span>
+                            <span className="bg-amber-600/80 text-white px-3 py-1 rounded-full text-sm font-bold shadow-sm">🧪 pH {field.soilData.pH}</span>
                         )}
                     </div>
                 </div>
             </div>
 
             <div className="max-w-5xl mx-auto px-6 md:px-10 py-10 space-y-10">
+
+                {/* Outcome Analysis Banner */}
+                {field.status === 'harvested' && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 md:w-16 md:h-16 bg-indigo-600 rounded-full shrink-0 flex items-center justify-center text-white text-2xl md:text-3xl shadow-md">
+                                ⛏️
+                            </div>
+                            <div>
+                                <h2 className="text-xl md:text-2xl font-black text-indigo-900 mb-1">Harvest Completed</h2>
+                                <p className="text-indigo-700 font-medium text-sm md:text-base">Final yield comparison against AI projections.</p>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl p-5 shadow-sm border border-indigo-100 flex gap-6 md:gap-10 w-full md:w-auto">
+                            <div>
+                                <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Expected Yield</p>
+                                <p className="text-lg md:text-xl font-bold text-gray-400 line-through">{field.estimatedYieldRaw} <span className="text-xs md:text-sm">{field.yieldUnit}</span></p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] md:text-[11px] font-bold text-indigo-500 uppercase tracking-wider mb-1">Actual Yield</p>
+                                <p className="text-2xl md:text-3xl font-black text-indigo-700">{field.actualYield || 0} <span className="text-xs md:text-sm">{field.yieldUnit}</span></p>
+                            </div>
+                            <div className="border-l border-indigo-100 pl-6 md:pl-10">
+                                <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Difference</p>
+                                <p className={`text-xl md:text-2xl font-black ${((field.actualYield||0) - field.estimatedYieldRaw) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {((field.actualYield || 0) - field.estimatedYieldRaw) >= 0 ? '+' : ''}{Math.round(((field.actualYield || 0) - field.estimatedYieldRaw) * 10) / 10} <span className="text-xs md:text-sm">{field.yieldUnit}</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {field.status === 'failure' && (
+                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 md:w-16 md:h-16 bg-rose-600 rounded-full shrink-0 flex items-center justify-center text-white text-2xl md:text-3xl shadow-md">
+                                ⚠️
+                            </div>
+                            <div>
+                                <h2 className="text-xl md:text-2xl font-black text-rose-900 mb-1">Crop Failure</h2>
+                                <p className="text-rose-700 font-medium text-sm md:text-base border-l-2 pl-3 border-rose-300 mt-2">{field.failureReason ? field.failureReason : 'No reason provided.'}</p>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl p-5 shadow-sm border border-rose-100 flex gap-6 md:gap-10 w-full md:w-auto">
+                            <div>
+                                <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Expected Yield</p>
+                                <p className="text-lg md:text-xl font-bold text-gray-400 line-through">{field.estimatedYieldRaw} <span className="text-xs md:text-sm">{field.yieldUnit}</span></p>
+                            </div>
+                            <div className="border-l border-rose-100 pl-6 md:pl-10">
+                                <p className="text-[10px] md:text-[11px] font-bold text-rose-500 uppercase tracking-wider mb-1">Total Loss</p>
+                                <p className="text-2xl md:text-3xl font-black text-rose-700">-100%</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Stats Row */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -213,15 +270,17 @@ export default function FieldDetailPage() {
 
                 {/* Planting Status */}
                 {!field.plantingDate ? (
-                    <div className="bg-white border-2 border-dashed border-emerald-200 rounded-2xl p-8 text-center">
-                        <p className="text-gray-500 mb-4">This field hasn't been marked as planted yet. Do it now to activate the fertilization timeline.</p>
-                        <button
-                            onClick={handlePlant}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-3 rounded-xl shadow-md transition-all"
-                        >
-                            🌱 Mark as Planted Today
-                        </button>
-                    </div>
+                    field.status === 'active' && (
+                        <div className="bg-white border-2 border-dashed border-emerald-200 rounded-2xl p-8 text-center">
+                            <p className="text-gray-500 mb-4">This field hasn't been marked as planted yet. Do it now to activate the fertilization timeline.</p>
+                            <button
+                                onClick={handlePlant}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-3 rounded-xl shadow-md transition-all"
+                            >
+                                🌱 Mark as Planted Today
+                            </button>
+                        </div>
+                    )
                 ) : (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-center gap-4">
                         <span className="text-3xl">🌱</span>
@@ -286,7 +345,7 @@ export default function FieldDetailPage() {
                                             <p className="text-sm font-black text-green-700 mt-0.5">{targetDateStr}</p>
                                         </div>
 
-                                        {!isApplied && stage.selectedType && (
+                                        {!isApplied && stage.selectedType && field.status === 'active' && (
                                             <button
                                                 onClick={() => markApplied(idx)}
                                                 className="shrink-0 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 text-sm font-bold px-4 py-2 rounded-lg shadow-sm transition-all"
@@ -296,7 +355,7 @@ export default function FieldDetailPage() {
                                         )}
                                     </div>
 
-                                    {!isApplied && (
+                                    {!isApplied && field.status === 'active' && (
                                         <div className="mt-3 bg-gray-50 border rounded-xl p-4">
                                             {/* Toggle Tabs */}
                                             <div className="flex gap-1 bg-gray-200 p-1 rounded-lg w-fit mb-4">
@@ -483,7 +542,7 @@ export default function FieldDetailPage() {
                                                                         <p className="text-sm font-black text-rose-600 mt-0.5">{dateStr}</p>
                                                                     </div>
 
-                                                                    {!isApplied && step.selectedType && (
+                                                                    {!isApplied && step.selectedType && field.status === 'active' && (
                                                                         <button
                                                                             onClick={() => markTreatmentStepApplied(realIdx, sIdx)}
                                                                             className="shrink-0 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 text-sm font-bold px-4 py-2 rounded-lg shadow-sm transition-all"
@@ -493,7 +552,7 @@ export default function FieldDetailPage() {
                                                                     )}
                                                                 </div>
 
-                                                                {!isApplied && (
+                                                                {!isApplied && field.status === 'active' && (
                                                                     <div className="mt-3 bg-gray-50 border rounded-xl p-4">
                                                                         <div className="flex gap-1 bg-gray-200 p-1 rounded-lg w-fit mb-3">
                                                                             <button

@@ -426,12 +426,32 @@ export default function Dashboard() {
 
                                 <div className="mt-4 pt-4 border-t border-gray-100">
                                     {field.status === 'harvested' ? (
-                                        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-center">
-                                            <span className="text-indigo-800 font-bold justify-center text-sm flex items-center gap-2"><Pickaxe size={16}/> Yield: {field.actualYield || '--'} {field.yieldUnit}</span>
+                                        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-indigo-800/70 text-xs font-bold uppercase tracking-wider">Expected</span>
+                                                <span className="text-indigo-800/70 text-xs font-bold uppercase tracking-wider">Actual</span>
+                                            </div>
+                                            <div className="flex justify-between items-end font-black mb-1.5">
+                                                <span className="text-gray-400 line-through text-sm">{field.estimatedYieldRaw} <span className="text-[10px] font-bold">{field.yieldUnit}</span></span>
+                                                <span className="text-indigo-700 text-lg leading-none flex items-center gap-1.5"><Pickaxe size={16}/> {field.actualYield || 0} <span className="text-[10px] font-bold">{field.yieldUnit}</span></span>
+                                            </div>
+                                            <div className={`text-xs font-bold text-right ${(field.actualYield || 0) >= field.estimatedYieldRaw ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                {((field.actualYield || 0) - field.estimatedYieldRaw) >= 0 ? '+' : ''}{Math.round(((field.actualYield || 0) - field.estimatedYieldRaw) * 10) / 10} {field.yieldUnit} difference
+                                            </div>
                                         </div>
                                     ) : field.status === 'failure' ? (
-                                        <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 text-left">
-                                            <span className="text-rose-800 font-bold text-[11px] block">{field.failureReason ? `Reason: ${field.failureReason}` : 'No reason provided.'}</span>
+                                        <div className="bg-rose-50 border border-rose-100 rounded-xl p-3">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-rose-800/70 text-xs font-bold uppercase tracking-wider">Expected</span>
+                                                <span className="text-rose-800/70 text-xs font-bold uppercase tracking-wider">Loss</span>
+                                            </div>
+                                            <div className="flex justify-between items-end font-black">
+                                                <span className="text-gray-400 line-through text-sm">{field.estimatedYieldRaw} <span className="text-[10px] font-bold">{field.yieldUnit}</span></span>
+                                                <span className="text-rose-700 text-lg leading-none">-100%</span>
+                                            </div>
+                                            <div className="text-rose-900 font-bold text-[11px] mt-2 pt-2 border-t border-rose-200/60 leading-tight">
+                                                {field.failureReason ? `Reason: ${field.failureReason}` : 'No reason provided.'}
+                                            </div>
                                         </div>
                                     ) : !field.plantingDate ? (
                                         <button onClick={(e) => { e.stopPropagation(); handlePlant(field._id); }} className="w-full bg-[#1b5e20] hover:bg-green-800 text-white text-sm font-bold py-2.5 rounded-xl flex justify-center items-center gap-2 transition-colors">
