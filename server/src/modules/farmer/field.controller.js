@@ -137,6 +137,40 @@ const markPlanted = async (req, res) => {
     }
 }
 
+const markHarvested = async (req, res) => {
+    try {
+        const field = await Field.findById(req.params.id);
+        if(!field) return res.status(404).json({ success:false, message: "Field not found" });
+        if(field.userId.toString() !== req.session.userId) return res.status(403).json({ success:false, message: "Forbidden" });
+
+        const { actualYield } = req.body;
+        field.status = 'harvested';
+        if (actualYield !== undefined) field.actualYield = Number(actualYield);
+
+        await field.save();
+        res.status(200).json({ success: true, field });
+    } catch(err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+const markFailure = async (req, res) => {
+    try {
+        const field = await Field.findById(req.params.id);
+        if(!field) return res.status(404).json({ success:false, message: "Field not found" });
+        if(field.userId.toString() !== req.session.userId) return res.status(403).json({ success:false, message: "Forbidden" });
+
+        const { failureReason } = req.body;
+        field.status = 'failure';
+        if (failureReason) field.failureReason = failureReason.trim();
+
+        await field.save();
+        res.status(200).json({ success: true, field });
+    } catch(err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 const updateSchedulePreference = async (req, res) => {
     try {
         const { id, stageIndex } = req.params;
@@ -265,5 +299,7 @@ module.exports = {
     applySchedulePhase,
     diagnoseField,
     updateTreatmentStepPreference,
-    applyTreatmentStep
+    applyTreatmentStep,
+    markHarvested,
+    markFailure
 };

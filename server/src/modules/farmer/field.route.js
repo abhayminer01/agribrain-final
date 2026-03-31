@@ -23,6 +23,8 @@ router.get('/:id', fieldController.getFieldById);
 router.patch('/:id', fieldController.updateField);
 router.delete('/:id', fieldController.deleteField);
 router.put('/:id/plant', fieldController.markPlanted);
+router.put('/:id/harvest', fieldController.markHarvested);
+router.put('/:id/failure', fieldController.markFailure);
 router.post('/:id/diagnose', upload.single('image'), fieldController.diagnoseField);
 router.put('/:id/diagnose/:diagIndex/step/:stepIndex/select', fieldController.updateTreatmentStepPreference);
 router.put('/:id/diagnose/:diagIndex/step/:stepIndex/apply', fieldController.applyTreatmentStep);

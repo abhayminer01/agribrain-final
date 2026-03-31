@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { generateFieldAuditPDF } from '../utils/pdfGenerator';
 
 const API = 'http://localhost:5000';
 
@@ -102,6 +105,10 @@ export default function FieldDetailPage() {
         if (res.ok) { const d = await res.json(); setField(d.field); }
     };
 
+    const handleGeneratePDF = () => {
+        generateFieldAuditPDF(field);
+    };
+
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="animate-spin h-10 w-10 rounded-full border-4 border-green-700 border-b-transparent"></div>
@@ -127,12 +134,21 @@ export default function FieldDetailPage() {
                 <img src={field.imageUrl} alt={field.name} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-black/80" />
                 <div className="absolute inset-0 flex flex-col justify-end p-8 md:p-12">
-                    <button
-                        onClick={() => navigate('/dashboard')}
-                        className="absolute top-6 left-6 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-bold px-4 py-2 rounded-lg transition-all"
-                    >
-                        ← Dashboard
-                    </button>
+                    <div className="absolute top-6 left-6 right-6 flex flex-wrap gap-4 justify-between items-start">
+                        <button
+                            onClick={() => navigate('/dashboard')}
+                            className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-bold px-4 py-2 rounded-lg transition-all"
+                        >
+                            ← Dashboard
+                        </button>
+                        <button
+                            onClick={handleGeneratePDF}
+                            className="bg-emerald-600 hover:bg-emerald-700 backdrop-blur-md text-white font-bold px-5 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition-all"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            Get Complete Audit
+                        </button>
+                    </div>
                     <span className="text-white/70 text-sm font-bold uppercase tracking-widest mb-2">Field Overview</span>
                     <h1 className="text-4xl md:text-5xl font-black text-white">{field.name}</h1>
                     <div className="flex flex-wrap gap-3 mt-3">

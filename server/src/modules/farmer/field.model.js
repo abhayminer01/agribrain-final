@@ -22,6 +22,11 @@ const fieldSchema = new mongoose.Schema({
     estimatedYieldRaw: { type: Number },
     yieldUnit: { type: String },
     
+    // Outcome tracking
+    status: { type: String, enum: ['active', 'harvested', 'failure'], default: 'active' },
+    actualYield: { type: Number },
+    failureReason: { type: String },
+    
     // NEW: Timed Schedule mapped organically and chemically
     fertilizationSchedule: [{
         dayOffset: { type: Number, required: true },
