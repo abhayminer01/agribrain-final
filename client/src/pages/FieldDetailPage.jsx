@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { generateFieldAuditPDF } from '../utils/pdfGenerator';
 
 const API = 'http://localhost:5000';
@@ -126,6 +127,21 @@ export default function FieldDetailPage() {
     const total     = field.fertilizationSchedule?.length ?? 0;
     const progress  = total ? Math.round((applied / total) * 100) : 0;
 
+    const getFertilizerStats = () => {
+        if (!field || !field.fertilizationSchedule) return { organic: 0, chemical: 0, items: [] };
+        const appliedStages = field.fertilizationSchedule.filter(s => s.status === 'applied' && s.selectedType);
+        let organic = 0;
+        let chemical = 0;
+        const items = [];
+        appliedStages.forEach(stage => {
+            if (stage.selectedType === 'organic') organic++;
+            if (stage.selectedType === 'chemical') chemical++;
+            const stageItems = stage.options?.[stage.selectedType] || [];
+            stageItems.forEach(item => items.push({ type: stage.selectedType, item, stage: stage.stageName }));
+        });
+        return { organic, chemical, items };
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 font-sans">
 
@@ -217,6 +233,79 @@ export default function FieldDetailPage() {
                                 <p className="text-2xl md:text-3xl font-black text-rose-700">-100%</p>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* Post-Harvest Fertilizer Stats Graph */}
+                {field.status === 'harvested' && (
+                    <div className="bg-white border rounded-2xl p-6 md:p-8 shadow-sm">
+                        <h2 className="text-xl font-black text-gray-800 mb-6 flex items-center gap-2">
+                            🧪 Post-Harvest Fertilizer Analysis
+                        </h2>
+                        
+                        {(() => {
+                            const stats = getFertilizerStats();
+                            const totalStages = stats.organic + stats.chemical;
+                            
+                            if (totalStages === 0) {
+                                return <p className="text-gray-500 italic text-sm">No fertilization data recorded prior to harvest.</p>;
+                            }
+                            
+                            const data = [
+                                { name: 'Organic', value: stats.organic, color: '#10b981' }, 
+                                { name: 'Chemical', value: stats.chemical, color: '#3b82f6' }
+                            ].filter(d => d.value > 0);
+                            
+                            return (
+                                <div className="flex flex-col md:flex-row gap-8 items-center">
+                                    <div className="w-full md:w-1/3 h-64 shrink-0">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={data}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    innerRadius={60}
+                                                    outerRadius={85}
+                                                    paddingAngle={5}
+                                                    dataKey="value"
+                                                >
+                                                    {data.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip 
+                                                    formatter={(value) => [`${value} Stages`, 'Applied']}
+                                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                />
+                                                <Legend verticalAlign="bottom" height={36}/>
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    
+                                    <div className="flex-1 w-full">
+                                        <div className="bg-gray-50 border rounded-xl overflow-hidden">
+                                            <div className="bg-gray-100 p-3 border-b font-bold text-gray-700 text-sm">
+                                                Applied Fertilizer Log
+                                            </div>
+                                            <div className="max-h-56 overflow-y-auto p-3 space-y-2">
+                                                {stats.items.map((entry, idx) => (
+                                                    <div key={idx} className="flex gap-3 text-sm items-start p-2 border-b last:border-0 border-gray-100 border-dashed">
+                                                        <span className={`shrink-0 flex items-center justify-center w-6 h-6 rounded-full text-xs ${entry.type === 'organic' ? 'bg-emerald-100' : 'bg-blue-100'}`}>
+                                                            {entry.type === 'organic' ? '🍃' : '🧪'}
+                                                        </span>
+                                                        <div>
+                                                            <p className="font-bold text-gray-800">{entry.item}</p>
+                                                            <p className="text-[11px] text-gray-500 font-medium uppercase mt-0.5">{entry.stage} Phase</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
 
