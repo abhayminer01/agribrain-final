@@ -1,11 +1,68 @@
 const { GoogleGenAI } = require('@google/genai');
 const fs = require('fs');
 
-if(!process.env.GEMINI_API_KEY) {
+if (!process.env.GEMINI_API_KEY) {
     console.error("⚠️ WARNING: GEMINI_API_KEY is not defined in your environment variables. The AI will fail to boot!");
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// Model cascade: try primary first, fall back on quota errors
+const PRIMARY_MODEL   = 'gemini-2.5-flash';      // Current free-tier model
+const FALLBACK_MODEL  = 'gemini-2.0-flash-lite';  // Fallback
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Wraps any generateContent call with:
+ *  1. Try PRIMARY_MODEL first
+ *  2. On RESOURCE_EXHAUSTED, wait & retry once, then try FALLBACK_MODEL
+ *  3. Log the FULL raw error for debugging
+ */
+const generateWithRetry = async (buildRequest, maxRetries = 2) => {
+    const models = [PRIMARY_MODEL, FALLBACK_MODEL];
+
+    for (const model of models) {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                const request = buildRequest(model);
+                console.log(`🤖 AI Request → model: ${model}, attempt: ${attempt + 1}`);
+                const response = await ai.models.generateContent(request);
+                console.log(`✅ AI Response received from [${model}]`);
+                return response;
+            } catch (err) {
+                // LOG THE RAW ERROR so we can actually see what's happening
+                console.error(`❌ AI ERROR [${model}] attempt ${attempt + 1}:`, err?.message || err);
+                
+                const msg = (err?.message || '') + (err?.errorDetails ? JSON.stringify(err.errorDetails) : '');
+                const isRateLimit = msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429') || msg.includes('Quota exceeded');
+
+                if (!isRateLimit) {
+                    // Not a quota issue — throw immediately (bad key, bad model, network, etc.)
+                    throw err;
+                }
+
+                // Rate/quota limit — try waiting before next attempt
+                const retryMatch = msg.match(/retry in ([\d.]+)s/i);
+                const delaySecs = retryMatch ? parseFloat(retryMatch[1]) + 1 : (attempt + 1) * 5;
+
+                if (attempt < maxRetries - 1) {
+                    console.warn(`⏳ Waiting ${delaySecs.toFixed(0)}s before retry...`);
+                    await sleep(delaySecs * 1000);
+                } else {
+                    console.warn(`⚠️ All retries exhausted for [${model}], trying next model...`);
+                }
+            }
+        }
+    }
+
+    // All models and retries exhausted
+    const quotaErr = new Error(
+        'AI quota exceeded. The Gemini API free tier daily limit has been reached. Please try again tomorrow or upgrade your API plan.'
+    );
+    quotaErr.code = 'QUOTA_EXCEEDED';
+    throw quotaErr;
+};
 
 const getFilePart = (filePath) => {
     const ext = filePath.split('.').pop().toLowerCase();
@@ -49,18 +106,18 @@ const detectDisease = async (filePath) => {
         }
       ]
     }`;
-    
+
     try {
         const imagePart = getFilePart(filePath);
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+        const response = await generateWithRetry((model) => ({
+            model,
             contents: [prompt, imagePart],
             config: { responseMimeType: "application/json" }
-        });
+        }));
         return JSON.parse(response.text);
-    } catch(err) {
-        console.error("AI Disease Detection Error:", err);
-        throw new Error("Failed to process image with AI.");
+    } catch (err) {
+        console.error("AI Disease Detection Error:", err.message);
+        throw err;
     }
 };
 
@@ -92,18 +149,18 @@ const detectPest = async (filePath) => {
         }
       ]
     }`;
-    
+
     try {
         const imagePart = getFilePart(filePath);
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+        const response = await generateWithRetry((model) => ({
+            model,
             contents: [prompt, imagePart],
             config: { responseMimeType: "application/json" }
-        });
+        }));
         return JSON.parse(response.text);
-    } catch(err) {
-        console.error("AI Pest Detection Error:", err);
-        throw new Error("Failed to process image with AI.");
+    } catch (err) {
+        console.error("AI Pest Detection Error:", err.message);
+        throw err;
     }
 };
 
@@ -116,18 +173,18 @@ const processSoilReport = async (filePath) => {
       "NPK": { "N": "value", "P": "value", "K": "value" },
       "suggestions": ["suggestion 1", "suggestion 2"]
     }`;
-    
+
     try {
         const filePart = getFilePart(filePath);
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+        const response = await generateWithRetry((model) => ({
+            model,
             contents: [prompt, filePart],
             config: { responseMimeType: "application/json" }
-        });
+        }));
         return JSON.parse(response.text);
-    } catch(err) {
-        console.error("AI Soil Report Error:", err);
-        throw new Error("Failed to process document with AI.");
+    } catch (err) {
+        console.error("AI Soil Report Error:", err.message);
+        throw err;
     }
 };
 
@@ -141,18 +198,20 @@ const analyzeSoilForCrops = async (filePath) => {
       "NPK": { "N": "value", "P": "value", "K": "value" },
       "suggestedCrops": ["Crop A", "Crop B", "Crop C"]
     }`;
+
     try {
         const filePart = getFilePart(filePath);
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+        const response = await generateWithRetry((model) => ({
+            model,
             contents: [prompt, filePart],
             config: { responseMimeType: "application/json" }
-        });
+        }));
         return JSON.parse(response.text);
-    } catch(err) {
-        throw new Error("Failed to analyze soil for crops.");
+    } catch (err) {
+        console.error("AI Soil Analysis Error:", err.message);
+        throw err;
     }
-}
+};
 
 const calculateNutrientsAndYield = async (crop, soilData, sizeAcres) => {
     const prompt = `Given an agricultural field of ${sizeAcres} acres planting ${crop}, 
@@ -178,18 +237,19 @@ const calculateNutrientsAndYield = async (crop, soilData, sizeAcres) => {
       "estimatedYieldRaw": 15.5,
       "yieldUnit": "Tons or kg"
     }`;
-    
+
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+        const response = await generateWithRetry((model) => ({
+            model,
             contents: prompt,
             config: { responseMimeType: "application/json" }
-        });
+        }));
         return JSON.parse(response.text);
-    } catch(err) {
-        throw new Error("Failed to calculate nutrients and yield metrics.");
+    } catch (err) {
+        console.error("AI Nutrients/Yield Error:", err.message);
+        throw err;
     }
-}
+};
 
 module.exports = {
     detectDisease,

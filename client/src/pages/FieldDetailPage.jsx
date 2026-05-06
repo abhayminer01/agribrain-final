@@ -85,11 +85,13 @@ export default function FieldDetailPage() {
                 setScanImage(null);
                 // Reset file input
                 document.getElementById('diagFileInput').value = '';
+            } else if (res.status === 429) {
+                setScanError('⚠️ AI Quota Exceeded: The daily free-tier limit has been reached. Please try again tomorrow.');
             } else {
                 setScanError(data.message || 'Scan failed.');
             }
         } catch (e) {
-            setScanError('Network error during scan.');
+            setScanError('Network error during scan. Please check your connection.');
         } finally {
             setScanning(false);
         }

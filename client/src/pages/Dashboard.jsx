@@ -112,10 +112,13 @@ export default function Dashboard() {
                 setTempReportUrl(data.tempReportUrl);
                 setAiAnalysis(data.analysis);
                 setCurrentStep(3);
+            } else if (res.status === 429) {
+                setFormError('⚠️ AI Quota Exceeded: The daily free-tier limit for AI analysis has been reached. Please try again tomorrow or contact support.');
+                setCurrentStep(1);
             } else {
                 setFormError(data.message); setCurrentStep(1);
             }
-        } catch (err) { setFormError('Network error'); setCurrentStep(1); } finally { setIsSubmitting(false); }
+        } catch (err) { setFormError('Network error. Please check your connection.'); setCurrentStep(1); } finally { setIsSubmitting(false); }
     }
 
     const handleCreateField = async (e) => {
@@ -134,12 +137,16 @@ export default function Dashboard() {
             const response = await fetch('http://localhost:5000/api/fields', {
                 method: 'POST', credentials: 'include', body: formData
             });
+            const data = await response.json();
             if (response.ok) {
-                const data = await response.json();
                 setFields([data.field, ...fields]);
                 setIsModalOpen(false);
-            } else { setFormError((await response.json()).message); }
-        } catch (err) { setFormError('Network error'); } finally { setIsSubmitting(false); }
+            } else if (response.status === 429) {
+                setFormError('⚠️ AI Quota Exceeded: Unable to calculate nutrients. The daily free-tier limit has been reached. Please try again tomorrow.');
+            } else {
+                setFormError(data.message);
+            }
+        } catch (err) { setFormError('Network error. Please check your connection.'); } finally { setIsSubmitting(false); }
     };
 
     const handlePlant = async (id) => {
@@ -354,7 +361,7 @@ export default function Dashboard() {
                         <div
                             key={field._id}
                             onClick={() => navigate(`/fields/${field._id}`)}
-                            className='bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 flex flex-col cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 h-[380px]'
+                            className='bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 flex flex-col cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 h-full min-h-[380px]'
                         >
                             {/* Card Header Image */}
                             <div className='w-full h-[180px] bg-gray-100 relative shrink-0'>
