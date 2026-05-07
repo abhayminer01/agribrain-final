@@ -15,7 +15,10 @@ const askQuery = async (req, res) => {
 
 const getAllQueries = async (req, res) => {
     try {
-        const queries = await Query.find().populate('farmerId', 'email').sort({ createdAt: -1 });
+        const queries = await Query.find()
+            .populate('farmerId', 'email')
+            .populate('responses.expertId', 'email role fullName')
+            .sort({ createdAt: -1 });
         res.status(200).json({ success: true, queries });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

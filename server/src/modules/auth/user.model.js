@@ -13,6 +13,17 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['Farmer', 'Expert', 'Admin'],
         default: 'Farmer'
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'approved'],
+        default: 'approved'
+    },
+    description: {
+        type: String
+    },
+    fullName: {
+        type: String
     }
 }, { timestamps : true });
 

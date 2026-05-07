@@ -12,6 +12,7 @@ const soilRoutes = require('./src/modules/soil/soil.route');
 const expertRoutes = require('./src/modules/expert/expert.route');
 const adminRoutes = require('./src/modules/admin/admin.route');
 const notificationRoutes = require('./src/modules/farmer/notification.route');
+const announcementRoutes = require('./src/modules/expert/announcement.route');
 
 // Init Background Cron Workers
 require('./src/utils/cron');
@@ -23,7 +24,7 @@ app.get('/', (req, res) => {
 });
 
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'http://localhost:5174'],
     credentials: true
 }));
 app.use(express.json());
@@ -48,9 +49,11 @@ app.use('/api/soil', soilRoutes);
 app.use('/api/expert', expertRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server Running on Port : ${PORT}`);
     connectDatabase();
 });
+// Trigger restart

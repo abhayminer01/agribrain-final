@@ -11,7 +11,10 @@ export default function DiseasePage() {
 
     const handleAnalyze = async (e) => {
         e.preventDefault();
+        
+        // Strict validation
         if (!file) return setError('Please upload an image first.');
+        if (!file.type.startsWith('image/')) return setError('The uploaded file must be a valid image.');
         
         setError('');
         setLoading(true);

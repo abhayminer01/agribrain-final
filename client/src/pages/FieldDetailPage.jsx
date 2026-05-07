@@ -69,7 +69,11 @@ export default function FieldDetailPage() {
 
     const handleDiagnose = async (e) => {
         e.preventDefault();
+        
+        // Strict Validation
         if (!scanImage) return setScanError('Please select a crop image.');
+        if (!scanImage.type.startsWith('image/')) return setScanError('Uploaded file must be a valid image.');
+        
         setScanError('');
         setScanning(true);
         const formData = new FormData();
@@ -119,6 +123,18 @@ export default function FieldDetailPage() {
     const handleFieldAction = async (e) => {
         e.preventDefault();
         const { type, field: modalData, input } = actionModal;
+        setError('');
+
+        // Strict Validations
+        if (type === 'harvest' && (isNaN(parseFloat(input)) || parseFloat(input) < 0)) {
+            alert("Yield must be a valid positive number.");
+            return;
+        }
+        if (type === 'failure' && input.trim().length < 10) {
+            alert("Please provide a reason of at least 10 characters.");
+            return;
+        }
+
         let url = '';
         let opt = { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' } };
 

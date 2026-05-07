@@ -22,6 +22,33 @@ const registerUser = async (req, res) => {
     }
 }
 
+const registerExpert = async (req, res) => {
+    try {
+        const { email, password, description } = req.body;
+        if(!email || !password || !description) {
+            return res.status(400).json({ success: false, message: "Email, password, and description are required" });
+        }
+
+        const existingUser = await User.findOne({ email });
+        if(existingUser) {
+            return res.status(400).json({ success: false, message: "User already exists" });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = await User.create({ 
+            email, 
+            password: hashedPassword, 
+            role: 'Expert', 
+            status: 'pending', 
+            description 
+        });
+        
+        res.status(201).json({ success: true, message: "Registration submitted for admin approval" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error Occured", err: err.message });
+    }
+}
+
 const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -37,6 +64,10 @@ const loginUser = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if(!isMatch) {
             return res.status(400).json({ success: false, message: "Invalid email or password" });
+        }
+
+        if (user.role === 'Expert' && user.status === 'pending') {
+            return res.status(403).json({ success: false, message: "Account pending admin approval." });
         }
 
         // Set session
@@ -76,6 +107,7 @@ const checkSession = async (req, res) => {
 
 module.exports = {
     registerUser,
+    registerExpert,
     loginUser,
     logoutUser,
     checkSession

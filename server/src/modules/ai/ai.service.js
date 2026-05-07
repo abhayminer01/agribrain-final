@@ -1,86 +1,94 @@
-const { GoogleGenAI } = require('@google/genai');
+const { default: ollama } = require('ollama');
 const fs = require('fs');
+const pdfParse = require('pdf-parse');
 
-if (!process.env.GEMINI_API_KEY) {
-    console.error("⚠️ WARNING: GEMINI_API_KEY is not defined in your environment variables. The AI will fail to boot!");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-// Model cascade: try primary first, fall back on quota errors
-const PRIMARY_MODEL   = 'gemini-2.5-flash';      // Current free-tier model
-const FALLBACK_MODEL  = 'gemini-2.0-flash-lite';  // Fallback
+const MODEL = 'aleSuglia/qwen2-vl-2b-instruct-q4_k_m:latest';
+const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Wraps any generateContent call with:
- *  1. Try PRIMARY_MODEL first
- *  2. On RESOURCE_EXHAUSTED, wait & retry once, then try FALLBACK_MODEL
- *  3. Log the FULL raw error for debugging
- */
-const generateWithRetry = async (buildRequest, maxRetries = 2) => {
-    const models = [PRIMARY_MODEL, FALLBACK_MODEL];
+// Helper to extract text from PDF or get base64 for images
+const processFile = async (filePath) => {
+    const ext = filePath.split('.').pop().toLowerCase();
+    
+    if (ext === 'pdf') {
+        try {
+            const dataBuffer = fs.readFileSync(filePath);
+            const data = await pdfParse(dataBuffer);
+            return { type: 'text', content: data.text };
+        } catch (err) {
+            console.error("PDF Parsing Error:", err);
+            throw new Error("Failed to parse PDF file. Ensure it contains extractable text.");
+        }
+    } else {
+        // Image handling for Ollama (requires raw base64 without data URI scheme)
+        const base64Image = fs.readFileSync(filePath).toString("base64");
+        return { type: 'image', content: base64Image };
+    }
+};
 
-    for (const model of models) {
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-            try {
-                const request = buildRequest(model);
-                console.log(`🤖 AI Request → model: ${model}, attempt: ${attempt + 1}`);
-                const response = await ai.models.generateContent(request);
-                console.log(`✅ AI Response received from [${model}]`);
-                return response;
-            } catch (err) {
-                // LOG THE RAW ERROR so we can actually see what's happening
-                console.error(`❌ AI ERROR [${model}] attempt ${attempt + 1}:`, err?.message || err);
-                
-                const msg = (err?.message || '') + (err?.errorDetails ? JSON.stringify(err.errorDetails) : '');
-                const isRateLimit = msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429') || msg.includes('Quota exceeded');
+const generateWithRetry = async (prompt, filePath = null, maxRetries = 2) => {
+    let finalPrompt = prompt;
+    let images = [];
 
-                if (!isRateLimit) {
-                    // Not a quota issue — throw immediately (bad key, bad model, network, etc.)
-                    throw err;
-                }
-
-                // Rate/quota limit — try waiting before next attempt
-                const retryMatch = msg.match(/retry in ([\d.]+)s/i);
-                const delaySecs = retryMatch ? parseFloat(retryMatch[1]) + 1 : (attempt + 1) * 5;
-
-                if (attempt < maxRetries - 1) {
-                    console.warn(`⏳ Waiting ${delaySecs.toFixed(0)}s before retry...`);
-                    await sleep(delaySecs * 1000);
-                } else {
-                    console.warn(`⚠️ All retries exhausted for [${model}], trying next model...`);
-                }
-            }
+    if (filePath) {
+        const fileData = await processFile(filePath);
+        if (fileData.type === 'text') {
+            finalPrompt += `\n\n--- DOCUMENT TEXT ---\n${fileData.content}`;
+        } else if (fileData.type === 'image') {
+            images.push(fileData.content);
         }
     }
 
-    // All models and retries exhausted
-    const quotaErr = new Error(
-        'AI quota exceeded. The Gemini API free tier daily limit has been reached. Please try again tomorrow or upgrade your API plan.'
-    );
-    quotaErr.code = 'QUOTA_EXCEEDED';
-    throw quotaErr;
-};
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            console.log(`🤖 AI Request → model: ${MODEL}, attempt: ${attempt + 1}`);
+            
+            const response = await ollama.chat({
+                model: MODEL,
+                messages: [{
+                    role: 'user',
+                    content: finalPrompt + '\n\nIMPORTANT: Return ONLY the raw, valid JSON object. No markdown tags, no conversational text, no explanations.',
+                    images: images.length > 0 ? images : undefined
+                }],
+                format: 'json',
+                options: {
+                    temperature: 0.0,
+                    num_predict: 1024
+                }
+            });
 
-const getFilePart = (filePath) => {
-    const ext = filePath.split('.').pop().toLowerCase();
-    let mimeType = 'image/jpeg';
-    if (ext === 'png') mimeType = 'image/png';
-    else if (ext === 'pdf') mimeType = 'application/pdf';
+            console.log(`✅ AI Response received from [${MODEL}]`);
+            let content = response.message.content.trim();
+            
+            // Clean up markdown code blocks if the model still outputs them
+            if (content.startsWith('```')) {
+                content = content.replace(/^```(json)?\n/, '');
+                content = content.replace(/\n```$/, '');
+            }
+            
+            return JSON.parse(content);
+        } catch (err) {
+            console.error(`❌ AI ERROR [${MODEL}] attempt ${attempt + 1}:`, err?.message || err);
+            
+            if (err.message.includes('fetch failed') || err.message.includes('ECONNREFUSED')) {
+                throw new Error('Could not connect to Ollama. Please ensure Ollama is running locally.');
+            }
 
-    return {
-        inlineData: {
-            data: Buffer.from(fs.readFileSync(filePath)).toString("base64"),
-            mimeType
+            if (attempt < maxRetries - 1) {
+                console.warn(`⏳ Waiting 5s before retry...`);
+                await sleep(5000);
+            } else {
+                throw new Error('AI generation failed after multiple attempts.');
+            }
         }
-    };
+    }
 };
 
 const detectDisease = async (filePath) => {
     const prompt = `Analyze this crop image to detect diseases. Identify the disease and its severity.
-    Then create a multi-step TREATMENT COURSE with timeline. Each step should have a dayOffset (days from diagnosis), a stageName, and BOTH organic and chemical treatment options.
+    Then create a multi-step TREATMENT COURSE with timeline. You MUST generate AT LEAST 5 distinct chronological steps (e.g., immediate action, day 3, day 7, day 14, day 21). Each step should have a dayOffset (days from diagnosis), a stageName, and BOTH organic and chemical treatment options.
+    IMPORTANT: Provide EXACT, specific names and precise dosages for all organic and chemical treatments (e.g., 'Apply 2ml of Hexaconazole per liter of water', 'Spray 5% Neem oil extract'). Do NOT use generic placeholders like 'fungicide X' or 'treatment Y'.
     You MUST output ONLY valid JSON.
     Schema:
     {
@@ -92,29 +100,23 @@ const detectDisease = async (filePath) => {
           "dayOffset": 0,
           "stageName": "Immediate Action",
           "options": {
-            "chemical": ["Apply fungicide X"],
-            "organic": ["Apply neem oil spray"]
+            "chemical": ["Apply 2g of Mancozeb per liter of water"],
+            "organic": ["Spray 5% Neem seed kernel extract"]
           }
         },
         {
           "dayOffset": 7,
-          "stageName": "Follow-up Treatment",
+          "stageName": "Follow-up Assessment",
           "options": {
-            "chemical": ["Re-apply fungicide X at half dose"],
-            "organic": ["Apply Trichoderma bio-agent"]
+            "chemical": ["Apply 1ml of Propiconazole per liter"],
+            "organic": ["Apply Trichoderma harzianum at 5g per liter"]
           }
         }
       ]
     }`;
 
     try {
-        const imagePart = getFilePart(filePath);
-        const response = await generateWithRetry((model) => ({
-            model,
-            contents: [prompt, imagePart],
-            config: { responseMimeType: "application/json" }
-        }));
-        return JSON.parse(response.text);
+        return await generateWithRetry(prompt, filePath);
     } catch (err) {
         console.error("AI Disease Detection Error:", err.message);
         throw err;
@@ -123,7 +125,8 @@ const detectDisease = async (filePath) => {
 
 const detectPest = async (filePath) => {
     const prompt = `Analyze this crop image to detect pests. Identify the pest and its severity.
-    Then create a multi-step TREATMENT COURSE with timeline. Each step should have a dayOffset (days from diagnosis), a stageName, and BOTH organic and chemical treatment options.
+    Then create a multi-step TREATMENT COURSE with timeline. You MUST generate AT LEAST 5 distinct chronological steps (e.g., immediate action, day 3, day 7, day 14, day 21). Each step should have a dayOffset (days from diagnosis), a stageName, and BOTH organic and chemical treatment options.
+    IMPORTANT: Provide EXACT, specific names and precise dosages for all organic and chemical treatments (e.g., 'Apply 1.5ml of Imidacloprid per liter of water', 'Release 50 Ladybird beetles per acre'). Do NOT use generic placeholders like 'pesticide X' or 'treatment Y'.
     You MUST output ONLY valid JSON.
     Schema:
     {
@@ -135,29 +138,23 @@ const detectPest = async (filePath) => {
           "dayOffset": 0,
           "stageName": "Immediate Action",
           "options": {
-            "chemical": ["Apply pesticide X"],
-            "organic": ["Release predatory insects"]
+            "chemical": ["Apply 2ml of Chlorpyrifos per liter of water"],
+            "organic": ["Spray 5% Neem oil solution"]
           }
         },
         {
           "dayOffset": 5,
-          "stageName": "Monitoring & Re-application",
+          "stageName": "Monitoring and Second Dose",
           "options": {
-            "chemical": ["Spot-spray affected areas"],
-            "organic": ["Apply neem oil at dawn"]
+            "chemical": ["Apply 1g of Thiamethoxam per liter"],
+            "organic": ["Deploy pheromone traps and sticky cards"]
           }
         }
       ]
     }`;
 
     try {
-        const imagePart = getFilePart(filePath);
-        const response = await generateWithRetry((model) => ({
-            model,
-            contents: [prompt, imagePart],
-            config: { responseMimeType: "application/json" }
-        }));
-        return JSON.parse(response.text);
+        return await generateWithRetry(prompt, filePath);
     } catch (err) {
         console.error("AI Pest Detection Error:", err.message);
         throw err;
@@ -165,7 +162,7 @@ const detectPest = async (filePath) => {
 };
 
 const processSoilReport = async (filePath) => {
-    const prompt = `Analyze this soil test report (image or PDF). Extract key metrics and suggest treatments. You MUST output ONLY valid JSON.
+    const prompt = `CRITICAL OCR TASK: Analyze this soil test report. You MUST extract the EXACT numbers visible on the report for pH and NPK. DO NOT guess, DO NOT calculate averages, and DO NOT make up values. If a value is missing or illegible, return "Unknown". Your extraction must be 100% accurate and deterministic. Suggest treatments based on the extracted values. You MUST output ONLY valid JSON.
     Schema:
     {
       "type": "soil",
@@ -175,13 +172,7 @@ const processSoilReport = async (filePath) => {
     }`;
 
     try {
-        const filePart = getFilePart(filePath);
-        const response = await generateWithRetry((model) => ({
-            model,
-            contents: [prompt, filePart],
-            config: { responseMimeType: "application/json" }
-        }));
-        return JSON.parse(response.text);
+        return await generateWithRetry(prompt, filePath);
     } catch (err) {
         console.error("AI Soil Report Error:", err.message);
         throw err;
@@ -189,24 +180,19 @@ const processSoilReport = async (filePath) => {
 };
 
 const analyzeSoilForCrops = async (filePath) => {
-    const prompt = `Analyze this soil test report. Extract pH and NPK parameters explicitly. 
+    const prompt = `CRITICAL OCR TASK: Analyze this soil test report. You MUST extract the EXACT numbers visible on the report for pH and NPK. DO NOT guess, DO NOT calculate averages, and DO NOT make up values. If a value is missing or illegible, return "Unknown". Your extraction must be 100% accurate and deterministic.
     Based ENTIRELY on these metrics, suggest the top 3 most profitable and mathematically viable crops for this exact soil profile.
+    IMPORTANT: Provide EXACT real-world crop names (e.g., "Wheat", "Tomatoes", "Soybeans"). DO NOT use generic placeholders like "Crop A" or "Crop B".
     You MUST output ONLY valid JSON.
     Schema:
     {
       "pH": "numeric value",
       "NPK": { "N": "value", "P": "value", "K": "value" },
-      "suggestedCrops": ["Crop A", "Crop B", "Crop C"]
+      "suggestedCrops": ["Wheat", "Corn", "Tomatoes"]
     }`;
 
     try {
-        const filePart = getFilePart(filePath);
-        const response = await generateWithRetry((model) => ({
-            model,
-            contents: [prompt, filePart],
-            config: { responseMimeType: "application/json" }
-        }));
-        return JSON.parse(response.text);
+        return await generateWithRetry(prompt, filePath);
     } catch (err) {
         console.error("AI Soil Analysis Error:", err.message);
         throw err;
@@ -217,34 +203,38 @@ const calculateNutrientsAndYield = async (crop, soilData, sizeAcres) => {
     const prompt = `Given an agricultural field of ${sizeAcres} acres planting ${crop}, 
     and existing soil conditions of pH ${soilData?.pH || 'Unknown'}, Nitrogen: ${soilData?.NPK?.N || 'Unknown'}, Phosphorus: ${soilData?.NPK?.P || 'Unknown'}, Potassium: ${soilData?.NPK?.K || 'Unknown'}.
     
-    Calculate the exact required fertilization schedule. Break this down into multiple timeline stages.
+    Calculate the exact required fertilization schedule. You MUST generate AT LEAST 3 to 5 distinct chronological timeline stages covering the entire crop lifecycle (e.g., Pre-planting, Early Vegetative Growth, Flowering, Fruiting).
     For EACH stage, provide exactly what day it should occur relative to planting (dayOffset), a descriptive stageName, AND outline BOTH organic and chemical alternatives.
+    IMPORTANT: Provide EXACT, specific names and precise quantities for organic and chemical fertilizers (e.g., 'Apply 50 kg of Urea per acre', 'Apply 200 kg of Vermicompost'). Do NOT use generic placeholders like 'X amount of' or 'Y lbs'. Provide the total recommended amount calculated for the given acreage of ${sizeAcres} acres.
     Also, calculate the Predicted Harvest Time (daysToHarvest) and Estimated Yield Raw.
     You MUST output ONLY valid JSON.
     Schema:
     {
       "fertilizationSchedule": [
         {
-          "dayOffset": 15,
-          "stageName": "Early Vegetative Growth",
+          "dayOffset": 0,
+          "stageName": "Pre-Planting Base Dose",
           "options": {
-            "chemical": ["Apply X lbs of Urea", "Apply Y lbs of DAP"],
-            "organic": ["Apply Neem Cake", "Apply Cow Dung Manure"]
+            "chemical": ["Apply 50 kg of DAP", "Apply 25 kg of MOP"],
+            "organic": ["Apply 5 tons of Farm Yard Manure"]
+          }
+        },
+        {
+          "dayOffset": 30,
+          "stageName": "Active Vegetative Growth",
+          "options": {
+            "chemical": ["Apply 25 kg of Urea as top dressing"],
+            "organic": ["Apply 50 liters of Jeevamrutha"]
           }
         }
       ],
       "daysToHarvest": 90,
       "estimatedYieldRaw": 15.5,
-      "yieldUnit": "Tons or kg"
+      "yieldUnit": "Tons"
     }`;
 
     try {
-        const response = await generateWithRetry((model) => ({
-            model,
-            contents: prompt,
-            config: { responseMimeType: "application/json" }
-        }));
-        return JSON.parse(response.text);
+        return await generateWithRetry(prompt);
     } catch (err) {
         console.error("AI Nutrients/Yield Error:", err.message);
         throw err;
